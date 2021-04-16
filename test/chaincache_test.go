@@ -205,5 +205,19 @@ func TestChainCache(t *testing.T) {
 		assert.Equal(t, ttl, 2)
 		_, ttl, _ = fc1.GetWithTTL(key)
 		assert.Equal(t, ttl, 2)
+
+		chain.Get("somekeynotexisted")
+
+		assert.Equal(t, fc1.GetHits(), uint32(4))
+		assert.Equal(t, fc1.GetMisses(), uint32(7))
+
+		assert.Equal(t, fc2.GetHits(), uint32(3))
+		assert.Equal(t, fc2.GetMisses(), uint32(7))
+
+		assert.Equal(t, fc3.GetHits(), uint32(7))
+		assert.Equal(t, fc3.GetMisses(), uint32(1))
+
+		assert.Equal(t, chain.GetHits(), uint32(4))
+		assert.Equal(t, chain.GetMisses(), uint32(1))
 	}
 }
