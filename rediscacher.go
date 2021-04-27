@@ -20,7 +20,7 @@ type RediscacherCfg struct {
 }
 
 type Rediscacher struct {
-	client *redis.ClusterClient
+	client *redis.Client
 	cfg    *RediscacherCfg
 
 	inited         bool
@@ -46,8 +46,8 @@ func (c *Rediscacher) Init() error {
 	if c.inited {
 		return nil
 	}
-	rc := redis.NewClusterClient(&redis.ClusterOptions{
-		Addrs:    c.cfg.Hosts,
+	rc := redis.NewClient(&redis.Options{
+		Addr:     c.cfg.Hosts[0],
 		Username: c.cfg.Username,
 		Password: c.cfg.Password,
 
@@ -58,6 +58,19 @@ func (c *Rediscacher) Init() error {
 
 		PoolSize: c.cfg.PoolSize,
 	})
+
+	// rc := redis.NewClusterClient(&redis.ClusterOptions{
+	// 	Addrs:    c.cfg.Hosts,
+	// 	Username: c.cfg.Username,
+	// 	Password: c.cfg.Password,
+
+	// 	MaxRetries:   c.cfg.MaxRetries,
+	// 	DialTimeout:  time.Duration(c.cfg.DialTimeoutMs) * time.Millisecond,
+	// 	ReadTimeout:  time.Duration(c.cfg.ReadTimeoutMs) * time.Millisecond,
+	// 	WriteTimeout: time.Duration(c.cfg.WriteTimeoutMs) * time.Millisecond,
+
+	// 	PoolSize: c.cfg.PoolSize,
+	// })
 	c.ctx = context.Background()
 	c.client = rc
 
