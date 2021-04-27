@@ -5,15 +5,16 @@
 
 Умеет:
 - Хранить данные локально во Freecache
+- Хранить данные локально в Probecache 
 - Хранить данные удаленно в кластере Aerospike
-- Хранить данные удаленно в кластере Redis
+- Хранить данные удаленно в Redis
 - Работать сразу с цепочкой стораджей
 - Задавать отдельные TTL на каждую запись/сторадж
 - Собирать стату: Hits, Misses, AvgRequestTime (для редиса и аэроспайка)
 
 # 2. Подробнее
 
-Либа реализует набор оберток над тремя хранилищами - Freecache, Aerospike, Redis. В каждой из них реализован базовый набор операций: Get, Set, Del и каждый может
+Либа реализует набор оберток над четырьмя хранилищами - Freecache, Aerospike, Redis, [Probecache](https://github.com/n1ord/probecache) (простой локальный кеш). В каждой из них реализован базовый набор операций: Get, Set, Del и каждый может
 использоваться сам по себе как кешер или key/value сторадж.
 
 Методы подробнее:
@@ -46,8 +47,12 @@
 
 # 3. Пример
 ```go
-// Create 20mb local cache
-localcacher, err := chaincache.NewFreecacher(1024*1024*20) 
+// Create 20mb local LRU cache
+maxMemSize := 1024*1024*20
+critMemSize := 1024*1024*25
+shards  := 10
+maxCleanDepth := 6
+localcacher, err := chaincache.NewProbecacher(shards, maxMemSize, critMemSize, maxCleanDepth, chaincache.STORAGE_LRU) 
 if err != nil {
     panic(err)
 }
@@ -83,6 +88,19 @@ if err == nil {
 ```
 
 # 4. Конфигурация
+
+## [Probecache](https://github.com/n1ord/probecache)
+```go
+// create local LRU cache storing 20-25mb
+maxMemSize := 1024*1024*20
+critMemSize := 1024*1024*25
+shards  := 10
+maxCleanDepth := 6
+localcacher, err := chaincache.NewProbecacher(shards, maxMemSize, critMemSize, maxCleanDepth, chaincache.STORAGE_LRU) 
+if err != nil {
+    panic(err)
+}
+```
 
 ## FreeCache
 ```go
