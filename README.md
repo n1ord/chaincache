@@ -1,22 +1,23 @@
 # ChainCache
 
 # 1. Штоэто?
-Интерфейс над набором key/value стораджей, умеющий заодно объединять их в цепочки.
+Интерфейс над набором key/value стораджей/библиотек, умеющий заодно объединять их в цепочки.
 
 Умеет:
-- Локально во Freecache
-- Локально в FastCache (+ttl over fastcache)
-- Локально в Probecache 
-- Удаленно в кластере Aerospike
-- Удаленно в Redis
+- Локально во [Freecache](github.com/coocood/freecache)
+- Локально в [FastCache](github.com/VictoriaMetrics/fastcache) (+ttl over fastcache)
+- Локально в [Probecache](https://github.com/n1ord/probecache) (простой кеш на мапах)
+- Удаленно в кластере [Aerospike](github.com/aerospike/aerospike-client-go)
+- Удаленно в [Redis](github.com/go-redis/redis/v8)
 - Работать сразу с цепочкой стораджей
 - Задавать отдельные TTL на каждую запись/сторадж
 - Собирать стату: Hits, Misses, AvgRequestTime (для редиса и аэроспайка)
-- Все стораджи thread-safe
+- Все thread-safe
+- Все умеют в expiration записей
 
 # 2. Подробнее
 
-Либа реализует набор оберток над несколькими либами/хранилищами - Fastcache, Freecache, Aerospike, Redis, [Probecache](https://github.com/n1ord/probecache) (простой локальный кеш). В каждой из них реализован базовый набор операций: Get, Set, Del и каждый может
+Либа реализует набор оберток над несколькими либами/хранилищами - Fastcache, Freecache, Aerospike, Redis, Probecache. В каждой из них реализован базовый набор операций: Get, Set, Del и каждый может
 использоваться сам по себе как кешер или key/value сторадж.
 
 Методы подробнее:
@@ -109,7 +110,7 @@ MaxSizeInBytes := 1024*1024*20 //20mb
 fc, err := chaincache.NewFreecacher(MaxSizeInBytes)
 ```
 
-## [Probecache](https://github.com/n1ord/probecache)
+## Probecache
 Это локальный кеш на мапах с хитрым вытеснением. В силу мап медленнен на запись, побаивается GC, но космически быстр на чтениях.
 ```go
 // create local LRU cache storing 20-25mb
