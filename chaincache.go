@@ -29,6 +29,9 @@ type ChainCache struct {
 	// Auto store found data to all cachers to the left side with the rest of data TTL, default=false
 	NoBackwardCache bool
 
+	// All internal errors will be interpreted as ErrMiss
+	IgnoreErrors bool
+
 	inited bool
 	hits   uint32
 	misses uint32
@@ -86,6 +89,9 @@ func (c *ChainCache) Get(key string) ([]byte, error) {
 			atomic.AddUint32(&c.hits, 1)
 			break
 		}
+		if err != ErrMiss && c.IgnoreErrors {
+			err = ErrMiss
+		}
 		if err != ErrMiss {
 			return nil, err
 		}
@@ -100,7 +106,9 @@ func (c *ChainCache) Get(key string) ([]byte, error) {
 		for ix -= 1; ix >= 0; ix-- {
 			cacher := c.chain[ix]
 			if err = cacher.Set(key, val, ttl); err != nil {
-				return nil, err
+				if !c.IgnoreErrors {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -113,12 +121,14 @@ func (c *ChainCache) Set(key string, payload []byte, ttlSeconds []int) error {
 		return ErrNotInited
 	}
 	if len(ttlSeconds) != len(c.chain) {
-		return fmt.Errorf("ttl slice size must be equal to chain size")
+		return fmt.Errorf("ttl slice size must be equal to your chain size")
 	}
 	for ix := 0; ix < len(c.chain); ix++ {
 		cacher := c.chain[ix]
 		if err := cacher.Set(key, payload, ttlSeconds[ix]); err != nil {
-			return err
+			if !c.IgnoreErrors {
+				return err
+			}
 		}
 	}
 	return nil
@@ -130,7 +140,9 @@ func (c *ChainCache) Del(key string) error {
 	}
 	for _, cacher := range c.chain {
 		if err := cacher.Del(key); err != nil && err != ErrMiss {
-			return err
+			if !c.IgnoreErrors {
+				return err
+			}
 		}
 	}
 	return nil

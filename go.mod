@@ -3,6 +3,7 @@ module github.com/n1ord/chaincache
 go 1.15
 
 require (
+	github.com/VictoriaMetrics/fastcache v1.9.0 // indirect
 	github.com/aerospike/aerospike-client-go v4.5.0+incompatible
 	github.com/coocood/freecache v1.1.1
 	github.com/go-redis/redis/v8 v8.8.0

@@ -1,20 +1,22 @@
 # ChainCache
 
 # 1. Штоэто?
-Интерфейс над набором key/value стораджей, умеющий заодно объединять их в цепочки. Прямо как https://github.com/eko/gocache, но ламповей
+Интерфейс над набором key/value стораджей, умеющий заодно объединять их в цепочки.
 
 Умеет:
-- Хранить данные локально во Freecache
-- Хранить данные локально в Probecache 
-- Хранить данные удаленно в кластере Aerospike
-- Хранить данные удаленно в Redis
+- Локально во Freecache
+- Локально в FastCache (+ttl over fastcache)
+- Локально в Probecache 
+- Удаленно в кластере Aerospike
+- Удаленно в Redis
 - Работать сразу с цепочкой стораджей
 - Задавать отдельные TTL на каждую запись/сторадж
 - Собирать стату: Hits, Misses, AvgRequestTime (для редиса и аэроспайка)
+- Все стораджи thread-safe
 
 # 2. Подробнее
 
-Либа реализует набор оберток над четырьмя хранилищами - Freecache, Aerospike, Redis, [Probecache](https://github.com/n1ord/probecache) (простой локальный кеш). В каждой из них реализован базовый набор операций: Get, Set, Del и каждый может
+Либа реализует набор оберток над несколькими либами/хранилищами - Fastcache, Freecache, Aerospike, Redis, [Probecache](https://github.com/n1ord/probecache) (простой локальный кеш). В каждой из них реализован базовый набор операций: Get, Set, Del и каждый может
 использоваться сам по себе как кешер или key/value сторадж.
 
 Методы подробнее:
@@ -41,28 +43,31 @@
 
 До кучи добавлена возможность объединения стораджей в цепочки.
 Цепочка имеет реализацию методов: Get, Set, Del и работает следующим образом:
-- Get: цепочка ищет ключ по стораджам слева направо, пока, собственно, не найдет, после чего найденные данные будут записаны туда, где этот ключ не нашелся, причем в качестве TTL (сколько записи жить осталось) будет использовано оставшееся время из найденного стороджа. Это поведение можно отключить (выставив NoBackwardWrite=true), тогда результат будет возвращен немедленно
+- Get: цепочка ищет ключ по стораджам слева направо, пока, собственно, не найдет. Найденное вернется, плюс найденные данные будут записаны туда, где этот ключ не нашелся, причем в качестве TTL (сколько записи жить осталось) будет использовано оставшееся время из найденного стороджа. Это поведение можно отключить (выставив NoBackwardWrite=true), тогда результат будет возвращен немедленно
 - Set: данные пишутся всюду, можно задать свой TTL для каждого стораджа отдельно
 - Del: данные удаляются везде
 
+## Опции
+```go
+// Если true, отключает логику, когда кеш, найденный в дальнем элементе цепочки будет автоматически записан во все предшествующие элементы с остатком его ttl, по-умолчанию false
+<chaincache instance>.NoBackwardCache = true
+
+// Если true, цепочка игнорирует все внутренние ошибки кешеров (за исключением паник), интерпретируя их как ErrMiss. Может быть полезно при разработке или в ситуациях, когда один из кешеров цепочки не критичен и может отвалиться. По-умолчанию false
+<chaincache instance>.IgnoreErrors = true
+```
+
 # 3. Пример
 ```go
-// Create 20mb local LRU cache
-maxMemSize := 1024*1024*20
-critMemSize := 1024*1024*25
-shards  := 10
-maxCleanDepth := 6
-localcacher, err := chaincache.NewProbecacher(shards, maxMemSize, critMemSize, maxCleanDepth, chaincache.STORAGE_LRU) 
+// Create 40mb local cache
+maxSize := 1024*1024*40
+localcacher, err := chaincache.NewFastCacher(maxSize) 
 if err != nil {
     panic(err)
 }
 
 // Create redis cacher
 rediscacher, err := chaincache.NewRediscacher(&chaincache.RediscacherCfg{
-    Hosts: []string{
-        "127.0.0.1:30001",
-		"127.0.0.1:30002",
-    },
+    Host: "127.0.0.1:30001",
 })
 if err != nil {
     panic(err)
@@ -89,7 +94,23 @@ if err == nil {
 
 # 4. Конфигурация
 
+
+## FastCache
+Интерфейс над fastcache реализован с вариантом работы через ttl (искаропки его там нет). Без ttl данный сторадж игнорирует все передаваемые значения ttl_expiration - значения живут вечно вплоть до вытеснения по памяти. Его включение радикально замедляет операции записи, но гарантирует совместимость с прочими стораджами, где используется ttl
+```go
+MaxSizeInBytes := 1024*1024*32 //32mb - minimum
+useTTL := true
+fc, err := chaincache.NewFastcacher(MaxSizeInBytes, useTTL)
+```
+
+## FreeCache
+```go
+MaxSizeInBytes := 1024*1024*20 //20mb
+fc, err := chaincache.NewFreecacher(MaxSizeInBytes)
+```
+
 ## [Probecache](https://github.com/n1ord/probecache)
+Это локальный кеш на мапах с хитрым вытеснением. В силу мап медленнен на запись, побаивается GC, но космически быстр на чтениях.
 ```go
 // create local LRU cache storing 20-25mb
 maxMemSize := 1024*1024*20
@@ -100,12 +121,6 @@ localcacher, err := chaincache.NewProbecacher(shards, maxMemSize, critMemSize, m
 if err != nil {
     panic(err)
 }
-```
-
-## FreeCache
-```go
-MaxSizeInBytes := 1024*1024*20 //20mb
-fc, err := chaincache.NewFreecacher(MaxSizeInBytes)
 ```
 
 ## Aerocacher

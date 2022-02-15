@@ -2,6 +2,7 @@ package chaincache
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 type RediscacherCfg struct {
 	Hosts          []string `yaml:"hosts"`
+	Host           string   `yaml:"host"`
 	Username       string   `yaml:"username"`
 	Password       string   `yaml:"password"`
 	MaxRetries     int      `yaml:"max_retries"`
@@ -46,8 +48,16 @@ func (c *Rediscacher) Init() error {
 	if c.inited {
 		return nil
 	}
+	h := c.cfg.Host
+	if len(h) == 0 && len(c.cfg.Hosts) > 0 {
+		h = c.cfg.Hosts[0]
+	}
+	if len(h) == 0 {
+		return errors.New("redis host not defined")
+	}
+
 	rc := redis.NewClient(&redis.Options{
-		Addr:     c.cfg.Hosts[0],
+		Addr:     h,
 		Username: c.cfg.Username,
 		Password: c.cfg.Password,
 
@@ -71,6 +81,7 @@ func (c *Rediscacher) Init() error {
 
 	// 	PoolSize: c.cfg.PoolSize,
 	// })
+
 	c.ctx = context.Background()
 	c.client = rc
 

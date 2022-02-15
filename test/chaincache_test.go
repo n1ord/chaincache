@@ -137,6 +137,24 @@ func TestRediscacher(t *testing.T) {
 	// fmt.Printf("Cacher avg request time: %fsec\n", rc.GetAvgRequestTime())
 }
 
+func TestFastcacherWithTTL(t *testing.T) {
+	//Base fucntionality
+	fc, err := chaincache.NewFastCacher(1024*10, true)
+	if err != nil {
+		panic(err)
+	}
+	testCacher(t, fc)
+}
+
+func TestFastcacherNoTTL(t *testing.T) {
+	//Base fucntionality
+	fc, err := chaincache.NewFastCacher(1024*10, false)
+	if err != nil {
+		panic(err)
+	}
+	testCacher(t, fc)
+}
+
 func TestChainCache(t *testing.T) {
 	{
 		// checks chain set applying to all cachers
