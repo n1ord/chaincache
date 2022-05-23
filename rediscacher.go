@@ -9,6 +9,15 @@ import (
 	redis "github.com/go-redis/redis/v8"
 )
 
+type RedisClientIface interface {
+	Ping(ctx context.Context) *redis.StatusCmd
+	Set(context.Context, string, interface{}, time.Duration) *redis.StatusCmd
+	Get(context.Context, string) *redis.StringCmd
+	TTL(context.Context, string) *redis.DurationCmd
+	Del(context.Context, ...string) *redis.IntCmd
+	Close() error
+}
+
 type RediscacherCfg struct {
 	Hosts          []string `yaml:"hosts"`
 	Host           string   `yaml:"host"`
@@ -19,10 +28,11 @@ type RediscacherCfg struct {
 	ReadTimeoutMs  int64    `yaml:"read_timeout_ms"`
 	WriteTimeoutMs int64    `yaml:"write_timeout_ms"`
 	PoolSize       int      `yaml:"pool_size"`
+	ClusterMode    bool     `yaml:"cluster_mode"`
 }
 
 type Rediscacher struct {
-	client *redis.Client
+	client RedisClientIface
 	cfg    *RediscacherCfg
 
 	inited         bool
@@ -31,6 +41,36 @@ type Rediscacher struct {
 	misses         uint32
 	requestTimeSum float64
 	requestCount   uint32
+}
+
+func (c *Rediscacher) newRedisClient(cfg *RediscacherCfg) RedisClientIface {
+	return redis.NewClient(&redis.Options{
+		Addr:     c.cfg.Host,
+		Username: c.cfg.Username,
+		Password: c.cfg.Password,
+
+		MaxRetries:   c.cfg.MaxRetries,
+		DialTimeout:  time.Duration(c.cfg.DialTimeoutMs) * time.Millisecond,
+		ReadTimeout:  time.Duration(c.cfg.ReadTimeoutMs) * time.Millisecond,
+		WriteTimeout: time.Duration(c.cfg.WriteTimeoutMs) * time.Millisecond,
+
+		PoolSize: c.cfg.PoolSize,
+	})
+}
+
+func (c *Rediscacher) newRedisClusterClient(cfg *RediscacherCfg) RedisClientIface {
+	return redis.NewClusterClient(&redis.ClusterOptions{
+		Addrs:    c.cfg.Hosts,
+		Username: c.cfg.Username,
+		Password: c.cfg.Password,
+
+		MaxRetries:   c.cfg.MaxRetries,
+		DialTimeout:  time.Duration(c.cfg.DialTimeoutMs) * time.Millisecond,
+		ReadTimeout:  time.Duration(c.cfg.ReadTimeoutMs) * time.Millisecond,
+		WriteTimeout: time.Duration(c.cfg.WriteTimeoutMs) * time.Millisecond,
+
+		PoolSize: c.cfg.PoolSize,
+	})
 }
 
 func NewRediscacher(cfg *RediscacherCfg) (*Rediscacher, error) {
@@ -44,46 +84,45 @@ func NewRediscacher(cfg *RediscacherCfg) (*Rediscacher, error) {
 	return c, nil
 }
 
+func NewRediccacherWithClient(client RedisClientIface) (*Rediscacher, error) {
+	c := &Rediscacher{}
+	c.client = client
+	c.cfg = nil
+
+	c.ctx = context.Background()
+
+	err := c.client.Ping(c.ctx).Err()
+	if err != nil {
+		return nil, err
+	}
+	c.inited = true
+	return c, nil
+}
+
 func (c *Rediscacher) Init() error {
 	if c.inited {
 		return nil
 	}
-	h := c.cfg.Host
-	if len(h) == 0 && len(c.cfg.Hosts) > 0 {
-		h = c.cfg.Hosts[0]
-	}
-	if len(h) == 0 {
-		return errors.New("redis host not defined")
+
+	if len(c.cfg.Host) == 0 && len(c.cfg.Hosts) == 0 {
+		return errors.New("no one redis host is defined")
 	}
 
-	rc := redis.NewClient(&redis.Options{
-		Addr:     h,
-		Username: c.cfg.Username,
-		Password: c.cfg.Password,
+	if c.cfg.ClusterMode && len(c.cfg.Hosts) == 0 {
+		c.cfg.Hosts = []string{c.cfg.Host}
+	}
 
-		MaxRetries:   c.cfg.MaxRetries,
-		DialTimeout:  time.Duration(c.cfg.DialTimeoutMs) * time.Millisecond,
-		ReadTimeout:  time.Duration(c.cfg.ReadTimeoutMs) * time.Millisecond,
-		WriteTimeout: time.Duration(c.cfg.WriteTimeoutMs) * time.Millisecond,
+	if !c.cfg.ClusterMode && len(c.cfg.Host) == 0 {
+		c.cfg.Host = c.cfg.Hosts[0]
+	}
 
-		PoolSize: c.cfg.PoolSize,
-	})
-
-	// rc := redis.NewClusterClient(&redis.ClusterOptions{
-	// 	Addrs:    c.cfg.Hosts,
-	// 	Username: c.cfg.Username,
-	// 	Password: c.cfg.Password,
-
-	// 	MaxRetries:   c.cfg.MaxRetries,
-	// 	DialTimeout:  time.Duration(c.cfg.DialTimeoutMs) * time.Millisecond,
-	// 	ReadTimeout:  time.Duration(c.cfg.ReadTimeoutMs) * time.Millisecond,
-	// 	WriteTimeout: time.Duration(c.cfg.WriteTimeoutMs) * time.Millisecond,
-
-	// 	PoolSize: c.cfg.PoolSize,
-	// })
+	if c.cfg.ClusterMode {
+		c.client = c.newRedisClusterClient(c.cfg)
+	} else {
+		c.client = c.newRedisClient(c.cfg)
+	}
 
 	c.ctx = context.Background()
-	c.client = rc
 
 	err := c.client.Ping(c.ctx).Err()
 	if err != nil {
