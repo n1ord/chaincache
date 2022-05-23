@@ -154,6 +154,7 @@ cfg := &chaincache.RediscacherCfg{
 	Hosts          []string{"host1:port", "host2:port"},
 	Username       "",
 	Password       "",
+	ClusterMode    true, // if false, client will use firt host from Hosts
 
     //Can be omitted
 	MaxRetries     0,    // zero equals to 3, -1 disable retries
@@ -164,5 +165,8 @@ cfg := &chaincache.RediscacherCfg{
 	PoolSize       0,    // zero equals to 5 * runtime.NumCPU()
 }
 rc, err := chaincache.NewRediscacher(cfg)
-
 ```
+или с использованием ранее инициализированного клиента:
+```
+// redisClient := redis.NewClient(......)
+rc, err := chaincache.NewRediccacherWithClient(redisClient)

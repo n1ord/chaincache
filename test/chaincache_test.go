@@ -19,7 +19,7 @@ var (
 
 	REDIS_TEST_HOSTS = []string{
 		"pulse-redis-test1.openstack.go.devmail.ru:6379",
-		"pulse-redis-test2.openstack.go.devmail.ru:6379",
+		// "pulse-redis-test2.openstack.go.devmail.ru:6379",
 	}
 )
 
@@ -126,14 +126,17 @@ func TestAerocacher(t *testing.T) {
 }
 
 func TestRediscacher(t *testing.T) {
-	cfg := chaincache.RediscacherCfg{
-		Hosts: REDIS_TEST_HOSTS,
+	{
+		cfg := chaincache.RediscacherCfg{
+			Host:        REDIS_TEST_HOSTS[0],
+			ClusterMode: false,
+		}
+		rc, err := chaincache.NewRediscacher(&cfg)
+		if err != nil {
+			panic(err)
+		}
+		testCacher(t, rc)
 	}
-	rc, err := chaincache.NewRediscacher(&cfg)
-	if err != nil {
-		panic(err)
-	}
-	testCacher(t, rc)
 	// fmt.Printf("Cacher avg request time: %fsec\n", rc.GetAvgRequestTime())
 }
 

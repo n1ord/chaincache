@@ -54,7 +54,7 @@ func (c *Fastcacher) GetWithTTL(key string) ([]byte, int, error) {
 		atomic.AddUint32(&c.misses, 1)
 		return nil, 0, ErrMiss
 	}
-	atomic.AddUint32(&c.hits, 1)
+
 	if c.UseTTL {
 		ttlBytes := c.cache.Get(nil, bytes.Join([][]byte{[]byte(key), c.ttlKeySuffix}, nil))
 		if ttlBytes == nil {
@@ -70,6 +70,7 @@ func (c *Fastcacher) GetWithTTL(key string) ([]byte, int, error) {
 		atomic.AddUint32(&c.hits, 1)
 		return ret, int(ttl), nil
 	}
+	atomic.AddUint32(&c.hits, 1)
 
 	return ret, 0, nil
 }
