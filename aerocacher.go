@@ -155,14 +155,6 @@ func (c *Aerocacher) GetWithTTL(key string) ([]byte, int, error) {
 	return rec.Bins[c.cfg.BinName].([]byte), int(rec.Expiration), nil
 }
 
-func (c *Aerocacher) Close() {
-	if !c.inited {
-		return
-	}
-	c.client.Close()
-	c.inited = false
-}
-
 func (c *Aerocacher) Del(key string) error {
 	if !c.inited {
 		return ErrNotInited
@@ -185,6 +177,89 @@ func (c *Aerocacher) Del(key string) error {
 	}
 
 	return nil
+}
+
+func (c *Aerocacher) BSet(key []byte, payload []byte, ttlSeconds int) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	// log.Printf("Aerocache: set %s", key)
+
+	aeroKey, err := aero.NewKey(c.cfg.Namespace, c.cfg.SetName, key)
+	if err != nil {
+		return err
+	}
+
+	aeroBins := aero.BinMap{}
+	aeroBins[c.cfg.BinName] = payload
+
+	wpolicy := aero.NewWritePolicy(0, uint32(ttlSeconds))
+	start := time.Now()
+	err = c.client.Put(wpolicy, aeroKey, aeroBins)
+	c.requestCount++
+	c.requestTimeSum += time.Since(start).Seconds()
+	return err
+}
+
+func (c *Aerocacher) BGet(key []byte) ([]byte, error) {
+	data, _, err := c.BGetWithTTL(key)
+	return data, err
+}
+
+func (c *Aerocacher) BGetWithTTL(key []byte) ([]byte, int, error) {
+	if !c.inited {
+		return nil, 0, ErrNotInited
+	}
+	// log.Printf("Aerocache: get %s", key)
+
+	aeroKey, err := aero.NewKey(c.cfg.Namespace, c.cfg.SetName, key)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	start := time.Now()
+	rec, err := c.client.Get(nil, aeroKey)
+	c.requestCount++
+	c.requestTimeSum += time.Since(start).Seconds()
+	if err != nil {
+		atomic.AddUint32(&c.misses, 1)
+		return nil, 0, ErrMiss
+	}
+
+	atomic.AddUint32(&c.hits, 1)
+	return rec.Bins[c.cfg.BinName].([]byte), int(rec.Expiration), nil
+}
+
+func (c *Aerocacher) BDel(key []byte) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	aeroKey, err := aero.NewKey(c.cfg.Namespace, c.cfg.SetName, key)
+	if err != nil {
+		return err
+	}
+
+	wpolicy := aero.NewWritePolicy(0, 0)
+	start := time.Now()
+	deleted, err := c.client.Delete(wpolicy, aeroKey)
+	c.requestCount++
+	c.requestTimeSum += time.Since(start).Seconds()
+	if err != nil {
+		return err
+	}
+	if !deleted {
+		return ErrMiss
+	}
+
+	return nil
+}
+
+func (c *Aerocacher) Close() {
+	if !c.inited {
+		return
+	}
+	c.client.Close()
+	c.inited = false
 }
 
 func (c *Aerocacher) GetHits() uint32 {

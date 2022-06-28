@@ -98,6 +98,48 @@ func (c *Probecacher) Del(key string) error {
 	return nil
 }
 
+func (c *Probecacher) BGetWithTTL(key []byte) ([]byte, int, error) {
+	if !c.inited {
+		return nil, 0, ErrNotInited
+	}
+	// log.Printf("Freecache: get %s", key)
+	value, ttl, err := c.cache.GetWithTTL(string(key))
+	if err != nil {
+		if err == probecache.ErrMissing {
+			atomic.AddUint32(&c.misses, 1)
+			return nil, 0, ErrMiss
+		}
+		return nil, 0, fmt.Errorf("internal cache error: %s", err)
+	}
+	atomic.AddUint32(&c.hits, 1)
+	return value, int(ttl), nil
+}
+
+func (c *Probecacher) BGet(key []byte) ([]byte, error) {
+	if !c.inited {
+		return nil, ErrNotInited
+	}
+	val, _, err := c.GetWithTTL(string(key))
+	return val, err
+}
+
+func (c *Probecacher) BSet(key []byte, payload []byte, ttlSeconds int) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	// log.Printf("Freecache: set %s", key)
+	return c.cache.Set(string(key), payload, uint64(ttlSeconds))
+}
+
+func (c *Probecacher) BDel(key []byte) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	c.cache.Del(string(key))
+
+	return nil
+}
+
 func (c *Probecacher) Close() {
 	if !c.inited {
 		return

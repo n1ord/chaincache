@@ -15,6 +15,11 @@ type Cacher interface {
 	GetWithTTL(key string) ([]byte, int, error)
 	Set(key string, payload []byte, ttl int) error
 	Del(key string) error
+
+	BGet(key []byte) ([]byte, error)
+	BGetWithTTL(key []byte) ([]byte, int, error)
+	BSet(key []byte, payload []byte, ttl int) error
+	BDel(key []byte) error
 }
 
 var (
@@ -140,6 +145,90 @@ func (c *ChainCache) Del(key string) error {
 	}
 	for _, cacher := range c.chain {
 		if err := cacher.Del(key); err != nil && err != ErrMiss {
+			if !c.IgnoreErrors {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+
+func (c *ChainCache) BGet(key []byte) ([]byte, error) {
+	var (
+		val []byte
+		ix  int
+		ttl int
+		err error
+	)
+	if !c.inited {
+		return nil, ErrNotInited
+	}
+
+	for ix = 0; ix < len(c.chain); ix++ {
+		cacher := c.chain[ix]
+		if !c.NoBackwardCache {
+			val, ttl, err = cacher.BGetWithTTL(key)
+		} else {
+			val, err = cacher.BGet(key)
+		}
+
+		if err == nil {
+			atomic.AddUint32(&c.hits, 1)
+			break
+		}
+		if err != ErrMiss && c.IgnoreErrors {
+			err = ErrMiss
+		}
+		if err != ErrMiss {
+			return nil, err
+		}
+	}
+
+	if err == ErrMiss {
+		atomic.AddUint32(&c.misses, 1)
+		return nil, err
+	}
+
+	if !c.NoBackwardCache {
+		for ix -= 1; ix >= 0; ix-- {
+			cacher := c.chain[ix]
+			if err = cacher.BSet(key, val, ttl); err != nil {
+				if !c.IgnoreErrors {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	return val, nil
+}
+
+func (c *ChainCache) BSet(key []byte, payload []byte, ttlSeconds []int) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	if len(ttlSeconds) != len(c.chain) {
+		return fmt.Errorf("ttl slice size must be equal to your chain size")
+	}
+	for ix := 0; ix < len(c.chain); ix++ {
+		cacher := c.chain[ix]
+		if err := cacher.BSet(key, payload, ttlSeconds[ix]); err != nil {
+			if !c.IgnoreErrors {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (c *ChainCache) BDel(key []byte) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	for _, cacher := range c.chain {
+		if err := cacher.BDel(key); err != nil && err != ErrMiss {
 			if !c.IgnoreErrors {
 				return err
 			}

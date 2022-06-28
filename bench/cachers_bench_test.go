@@ -40,6 +40,16 @@ func BenchmarkFastCacherSet(b *testing.B) {
 	}
 }
 
+func BenchmarkFastCacherBSet(b *testing.B) {
+	cacher, _ := chaincache.NewFastCacher(maxMem, true)
+
+	keys, data := getBKeysData(limit)
+
+	for i := 0; i < b.N; i++ {
+		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
+	}
+}
+
 func BenchmarkFastCacherNoTTLSet(b *testing.B) {
 	cacher, _ := chaincache.NewFastCacher(maxMem, false)
 
@@ -47,6 +57,16 @@ func BenchmarkFastCacherNoTTLSet(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		cacher.Set(keys[seededRand.Intn(limit)], data, 3600)
+	}
+}
+
+func BenchmarkFastCacherNoTTLBSet(b *testing.B) {
+	cacher, _ := chaincache.NewFastCacher(maxMem, false)
+
+	keys, data := getBKeysData(limit)
+
+	for i := 0; i < b.N; i++ {
+		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
 	}
 }
 
@@ -58,11 +78,27 @@ func BenchmarkFreeCacherSet(b *testing.B) {
 	}
 }
 
+func BenchmarkFreeCacherBSet(b *testing.B) {
+	cacher, _ := chaincache.NewFreeCacher(maxMem)
+	keys, data := getBKeysData(limit)
+	for i := 0; i < b.N; i++ {
+		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
+	}
+}
+
 func BenchmarkProbeCacherSet(b *testing.B) {
 	cacher, _ := chaincache.NewProbecacher(50, maxMem, 1024*1024*48, 7, chaincache.STORAGE_LRU)
 	keys, data := getKeysData(limit)
 	for i := 0; i < b.N; i++ {
 		cacher.Set(keys[seededRand.Intn(limit)], data, 3600)
+	}
+}
+
+func BenchmarkProbeCacherBSet(b *testing.B) {
+	cacher, _ := chaincache.NewProbecacher(50, maxMem, 1024*1024*48, 7, chaincache.STORAGE_LRU)
+	keys, data := getBKeysData(limit)
+	for i := 0; i < b.N; i++ {
+		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
 	}
 }
 
@@ -81,6 +117,19 @@ func BenchmarkFastCacherGet(b *testing.B) {
 	}
 }
 
+func BenchmarkFastCacherBGet(b *testing.B) {
+	b.StopTimer()
+	cacher, _ := chaincache.NewFastCacher(maxMem, true)
+	keys, data := getBKeysData(limit)
+	for i := 0; i < b.N; i++ {
+		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cacher.BGet(keys[seededRand.Intn(limit)])
+	}
+}
+
 func BenchmarkFastCacherNoTTLGet(b *testing.B) {
 	b.StopTimer()
 	cacher, _ := chaincache.NewFastCacher(maxMem, false)
@@ -91,6 +140,19 @@ func BenchmarkFastCacherNoTTLGet(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		cacher.Get(keys[seededRand.Intn(limit)])
+	}
+}
+
+func BenchmarkFastCacherNoTTLBGet(b *testing.B) {
+	b.StopTimer()
+	cacher, _ := chaincache.NewFastCacher(maxMem, false)
+	keys, data := getBKeysData(limit)
+	for i := 0; i < b.N; i++ {
+		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cacher.BGet(keys[seededRand.Intn(limit)])
 	}
 }
 
@@ -107,6 +169,19 @@ func BenchmarkFreeCacherGet(b *testing.B) {
 	}
 }
 
+func BenchmarkFreeCacherBGet(b *testing.B) {
+	b.StopTimer()
+	cacher, _ := chaincache.NewFreeCacher(maxMem)
+	keys, data := getBKeysData(limit)
+	for i := 0; i < b.N; i++ {
+		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cacher.BGet(keys[seededRand.Intn(limit)])
+	}
+}
+
 func BenchmarkProbeCacherGet(b *testing.B) {
 	b.StopTimer()
 	cacher, _ := chaincache.NewProbecacher(50, maxMem, 1024*1024*48, 7, chaincache.STORAGE_LFU)
@@ -117,6 +192,19 @@ func BenchmarkProbeCacherGet(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		cacher.Get(keys[seededRand.Intn(limit)])
+	}
+}
+
+func BenchmarkProbeCacherBGet(b *testing.B) {
+	b.StopTimer()
+	cacher, _ := chaincache.NewProbecacher(50, maxMem, 1024*1024*48, 7, chaincache.STORAGE_LFU)
+	keys, data := getBKeysData(limit)
+	for i := 0; i < b.N; i++ {
+		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cacher.BGet(keys[seededRand.Intn(limit)])
 	}
 }
 
@@ -281,6 +369,17 @@ func getKeysData(limit int) ([]string, []byte) {
 	for i := 0; i < limit; i++ {
 		keyLen := seededRand.Intn(32) + 32
 		keys[i] = RandomString(keyLen)
+	}
+
+	dataLen := seededRand.Intn(dataMaxLen-20) + 20
+	return keys, []byte(RandomString(dataLen))
+}
+
+func getBKeysData(limit int) ([][]byte, []byte) {
+	keys := make([][]byte, limit)
+	for i := 0; i < limit; i++ {
+		keyLen := seededRand.Intn(32) + 32
+		keys[i] = []byte(RandomString(keyLen))
 	}
 
 	dataLen := seededRand.Intn(dataMaxLen-20) + 20

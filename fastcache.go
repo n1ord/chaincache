@@ -48,8 +48,9 @@ func (c *Fastcacher) GetWithTTL(key string) ([]byte, int, error) {
 	if !c.inited {
 		return nil, 0, ErrNotInited
 	}
+	k := []byte(key)
 
-	ret := c.cache.Get(nil, []byte(key))
+	ret := c.cache.Get(nil, k)
 	if ret == nil {
 		atomic.AddUint32(&c.misses, 1)
 		return nil, 0, ErrMiss
@@ -59,11 +60,13 @@ func (c *Fastcacher) GetWithTTL(key string) ([]byte, int, error) {
 		ttlBytes := c.cache.Get(nil, bytes.Join([][]byte{[]byte(key), c.ttlKeySuffix}, nil))
 		if ttlBytes == nil {
 			atomic.AddUint32(&c.misses, 1)
+			c.cache.Del(k)
 			return nil, 0, ErrMiss
 		}
 		ttl := int64(binary.LittleEndian.Uint64(ttlBytes)) - time.Now().Unix()
 		if ttl <= 0 {
 			atomic.AddUint32(&c.misses, 1)
+			c.cache.Del(k)
 			return nil, 0, ErrMiss
 		}
 
@@ -103,6 +106,70 @@ func (c *Fastcacher) Del(key string) error {
 		return ErrNotInited
 	}
 	c.cache.Del([]byte(key))
+	return nil
+}
+
+func (c *Fastcacher) BGetWithTTL(key []byte) ([]byte, int, error) {
+	if !c.inited {
+		return nil, 0, ErrNotInited
+	}
+
+	ret := c.cache.Get(nil, key)
+	if ret == nil {
+		atomic.AddUint32(&c.misses, 1)
+		return nil, 0, ErrMiss
+	}
+
+	if c.UseTTL {
+		ttlBytes := c.cache.Get(nil, bytes.Join([][]byte{key, c.ttlKeySuffix}, nil))
+		if ttlBytes == nil {
+			c.cache.Del(key)
+			atomic.AddUint32(&c.misses, 1)
+			return nil, 0, ErrMiss
+		}
+		ttl := int64(binary.LittleEndian.Uint64(ttlBytes)) - time.Now().Unix()
+		if ttl <= 0 {
+			atomic.AddUint32(&c.misses, 1)
+			c.cache.Del(key)
+			return nil, 0, ErrMiss
+		}
+
+		atomic.AddUint32(&c.hits, 1)
+		return ret, int(ttl), nil
+	}
+	atomic.AddUint32(&c.hits, 1)
+
+	return ret, 0, nil
+}
+
+func (c *Fastcacher) BGet(key []byte) ([]byte, error) {
+	if !c.inited {
+		return nil, ErrNotInited
+	}
+	val, _, err := c.BGetWithTTL(key)
+	return val, err
+}
+
+func (c *Fastcacher) BSet(key []byte, payload []byte, ttlSeconds int) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+
+	c.cache.Set(key, payload)
+	if c.UseTTL {
+		ts := time.Now().Unix() + int64(ttlSeconds)
+		tsBytes := make([]byte, 8)
+		binary.LittleEndian.PutUint64(tsBytes, uint64(ts))
+		c.cache.Set(bytes.Join([][]byte{key, c.ttlKeySuffix}, nil), tsBytes)
+	}
+	return nil
+}
+
+func (c *Fastcacher) BDel(key []byte) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	c.cache.Del(key)
 	return nil
 }
 

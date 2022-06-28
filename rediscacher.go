@@ -215,6 +215,90 @@ func (c *Rediscacher) Del(key string) error {
 	return nil
 }
 
+func (c *Rediscacher) BSet(key []byte, payload []byte, ttlSeconds int) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	start := time.Now()
+	err := c.client.Set(c.ctx, string(key), payload, time.Duration(ttlSeconds*int(time.Second))).Err()
+	c.requestCount += 1
+	c.requestTimeSum += time.Since(start).Seconds()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Rediscacher) BGet(key []byte) ([]byte, error) {
+	if !c.inited {
+		return nil, ErrNotInited
+	}
+
+	start := time.Now()
+	cmd := c.client.Get(c.ctx, string(key))
+	c.requestCount += 1
+	c.requestTimeSum += time.Since(start).Seconds()
+	res, err := cmd.Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			atomic.AddUint32(&c.misses, 1)
+			return nil, ErrMiss
+		}
+		return nil, err
+	}
+	atomic.AddUint32(&c.hits, 1)
+	return res, nil
+}
+
+func (c *Rediscacher) BGetWithTTL(key []byte) ([]byte, int, error) {
+	if !c.inited {
+		return nil, 0, ErrNotInited
+	}
+	skey := string(key)
+	start := time.Now()
+	res, err := c.client.Get(c.ctx, skey).Bytes()
+	c.requestCount += 1
+	c.requestTimeSum += time.Since(start).Seconds()
+	if err != nil {
+		if err == redis.Nil {
+			atomic.AddUint32(&c.misses, 1)
+			return nil, 0, ErrMiss
+		}
+		return nil, 0, err
+	}
+
+	start = time.Now()
+	cmd := c.client.TTL(c.ctx, skey)
+	c.requestCount += 1
+	c.requestTimeSum += time.Since(start).Seconds()
+	if cmd.Err() != nil {
+		return nil, 0, cmd.Err()
+	}
+	ttl := int(cmd.Val().Seconds())
+
+	atomic.AddUint32(&c.hits, 1)
+	return res, ttl, nil
+}
+
+func (c *Rediscacher) BDel(key []byte) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+
+	res, err := c.client.Del(c.ctx, string(key)).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return ErrMiss
+		}
+		return err
+	}
+	if res == 0 {
+		return ErrMiss
+	}
+
+	return nil
+}
+
 func (c *Rediscacher) GetHits() uint32 {
 	return atomic.LoadUint32(&c.hits)
 }

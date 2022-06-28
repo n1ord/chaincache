@@ -18,7 +18,7 @@
 # 2. Подробнее
 
 Либа реализует набор оберток над несколькими либами/хранилищами - Fastcache, Freecache, Aerospike, Redis, Probecache. В каждой из них реализован базовый набор операций: Get, Set, Del и каждый может
-использоваться сам по себе как кешер или key/value сторадж.
+использоваться сам по себе как кешер или key/value сторадж. Для оптимального использования поддерживается параллельный формат ключей: как string так и []byte (отдельный набор методов под каждый формат)
 
 Методы подробнее:
 ```go
@@ -30,6 +30,16 @@
 	Set(key string, payload []byte, ttl int) error
 	// Удаляет
 	Del(key string) error
+
+	// Аналог Get, но с байтовым ключем
+	BGet(key []byte) ([]byte, error)
+	// Аналог GetWithTTL, но с байтовым ключем
+	BGetWithTTL(key []byte) ([]byte, int, error)
+	// Аналог Set, но с байтовым ключем
+	BSet(key []byte, payload []byte, ttl int) error
+	// Аналог Del, но с байтовым ключем
+	BDel(key []byte) error
+	
 	// Число хитов стораджа
 	GetHits() uint32
 	// Число промахов

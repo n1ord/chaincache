@@ -80,6 +80,52 @@ func (c *Freecacher) Del(key string) error {
 	return nil
 }
 
+func (c *Freecacher) BGetWithTTL(key []byte) ([]byte, int, error) {
+	if !c.inited {
+		return nil, 0, ErrNotInited
+	}
+	// log.Printf("Freecache: get %s", key)
+	value, expiresAt, err := c.cache.GetWithExpiration(key)
+	if err != nil {
+		if err == freecache.ErrNotFound {
+			return nil, 0, ErrMiss
+		}
+		return nil, 0, fmt.Errorf("internal cache error: %s", err)
+	}
+	ttl := int64(expiresAt) - time.Now().Unix()
+	if ttl <= 0 {
+		return nil, 0, ErrMiss
+	}
+	return value, int(ttl), nil
+}
+
+func (c *Freecacher) BGet(key []byte) ([]byte, error) {
+	if !c.inited {
+		return nil, ErrNotInited
+	}
+	val, _, err := c.BGetWithTTL(key)
+	return val, err
+}
+
+func (c *Freecacher) BSet(key []byte, payload []byte, ttlSeconds int) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	// log.Printf("Freecache: set %s", key)
+	return c.cache.Set(key, payload, ttlSeconds)
+}
+
+func (c *Freecacher) BDel(key []byte) error {
+	if !c.inited {
+		return ErrNotInited
+	}
+	affected := c.cache.Del(key)
+	if !affected {
+		return ErrMiss
+	}
+	return nil
+}
+
 func (c *Freecacher) Close() {
 	if !c.inited {
 		return
