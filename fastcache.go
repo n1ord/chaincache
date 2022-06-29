@@ -1,7 +1,6 @@
 package chaincache
 
 import (
-	"bytes"
 	"encoding/binary"
 	"sync/atomic"
 	"time"
@@ -57,12 +56,8 @@ func (c *Fastcacher) GetWithTTL(key string) ([]byte, int, error) {
 	}
 
 	if c.UseTTL {
-		ttlBytes := c.cache.Get(nil, bytes.Join([][]byte{[]byte(key), c.ttlKeySuffix}, nil))
-		if ttlBytes == nil {
-			atomic.AddUint32(&c.misses, 1)
-			c.cache.Del(k)
-			return nil, 0, ErrMiss
-		}
+		ttlBytes := ret[len(ret)-8:]
+		ret := ret[:len(ret)-8]
 		ttl := int64(binary.LittleEndian.Uint64(ttlBytes)) - time.Now().Unix()
 		if ttl <= 0 {
 			atomic.AddUint32(&c.misses, 1)
@@ -74,7 +69,6 @@ func (c *Fastcacher) GetWithTTL(key string) ([]byte, int, error) {
 		return ret, int(ttl), nil
 	}
 	atomic.AddUint32(&c.hits, 1)
-
 	return ret, 0, nil
 }
 
@@ -91,13 +85,13 @@ func (c *Fastcacher) Set(key string, payload []byte, ttlSeconds int) error {
 		return ErrNotInited
 	}
 
-	c.cache.Set([]byte(key), payload)
 	if c.UseTTL {
-		ts := time.Now().Unix() + int64(ttlSeconds)
 		tsBytes := make([]byte, 8)
+		ts := time.Now().Unix() + int64(ttlSeconds)
 		binary.LittleEndian.PutUint64(tsBytes, uint64(ts))
-		c.cache.Set(bytes.Join([][]byte{[]byte(key), c.ttlKeySuffix}, nil), tsBytes)
+		payload = append(payload, tsBytes...)
 	}
+	c.cache.Set([]byte(key), payload)
 	return nil
 }
 
@@ -121,12 +115,8 @@ func (c *Fastcacher) BGetWithTTL(key []byte) ([]byte, int, error) {
 	}
 
 	if c.UseTTL {
-		ttlBytes := c.cache.Get(nil, bytes.Join([][]byte{key, c.ttlKeySuffix}, nil))
-		if ttlBytes == nil {
-			c.cache.Del(key)
-			atomic.AddUint32(&c.misses, 1)
-			return nil, 0, ErrMiss
-		}
+		ttlBytes := ret[len(ret)-8:]
+		ret := ret[:len(ret)-8]
 		ttl := int64(binary.LittleEndian.Uint64(ttlBytes)) - time.Now().Unix()
 		if ttl <= 0 {
 			atomic.AddUint32(&c.misses, 1)
@@ -155,13 +145,13 @@ func (c *Fastcacher) BSet(key []byte, payload []byte, ttlSeconds int) error {
 		return ErrNotInited
 	}
 
-	c.cache.Set(key, payload)
 	if c.UseTTL {
-		ts := time.Now().Unix() + int64(ttlSeconds)
 		tsBytes := make([]byte, 8)
+		ts := time.Now().Unix() + int64(ttlSeconds)
 		binary.LittleEndian.PutUint64(tsBytes, uint64(ts))
-		c.cache.Set(bytes.Join([][]byte{key, c.ttlKeySuffix}, nil), tsBytes)
+		payload = append(payload, tsBytes...)
 	}
+	c.cache.Set(key, payload)
 	return nil
 }
 
