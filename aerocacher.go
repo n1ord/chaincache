@@ -254,6 +254,8 @@ func (c *Aerocacher) BDel(key []byte) error {
 	return nil
 }
 
+func (c *Aerocacher) Reset() {}
+
 func (c *Aerocacher) Close() {
 	if !c.inited {
 		return

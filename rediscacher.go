@@ -315,6 +315,8 @@ func (c *Rediscacher) Close() {
 	c.inited = false
 }
 
+func (c *Rediscacher) Reset() {}
+
 func (c *Rediscacher) GetAvgRequestTime() float64 {
 	if c.requestCount == 0 {
 		return 0.

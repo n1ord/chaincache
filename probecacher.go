@@ -147,6 +147,10 @@ func (c *Probecacher) Close() {
 	c.inited = false
 }
 
+func (c *Probecacher) Reset() {
+	c.cache.Clear()
+}
+
 func (c *Probecacher) GetHits() uint32 {
 	return atomic.LoadUint32(&c.hits)
 }

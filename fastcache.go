@@ -32,6 +32,19 @@ func NewFastCacher(maxSize int, useTTL bool) (*Fastcacher, error) {
 	return c, nil
 }
 
+func NewFastCacherFromInstance(cache *fastcache.Cache, useTTL bool) (*Fastcacher, error) {
+	c := &Fastcacher{
+		cache:        cache,
+		inited:       true,
+		MaxSize:      0,
+		UseTTL:       useTTL,
+		ttlKeySuffix: []byte("@"),
+	}
+	atomic.StoreUint32(&c.hits, 0)
+	atomic.StoreUint32(&c.misses, 0)
+	return c, nil
+}
+
 func (c *Fastcacher) Init() error {
 	if c.inited {
 		return nil
@@ -168,6 +181,12 @@ func (c *Fastcacher) Close() {
 		return
 	}
 	c.inited = false
+}
+
+func (c *Fastcacher) Reset() {
+	c.cache.Reset()
+	atomic.StoreUint32(&c.hits, 0)
+	atomic.StoreUint32(&c.misses, 0)
 }
 
 func (c *Fastcacher) GetHits() uint32 {

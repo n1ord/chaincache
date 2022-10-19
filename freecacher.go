@@ -133,6 +133,11 @@ func (c *Freecacher) Close() {
 	c.inited = false
 }
 
+func (c *Freecacher) Reset() {
+	c.cache.Clear()
+	c.cache.ResetStatistics()
+}
+
 func (c *Freecacher) GetHits() uint32 {
 	return uint32(c.cache.HitCount())
 }

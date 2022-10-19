@@ -7,6 +7,7 @@ import (
 
 type Cacher interface {
 	Init() error
+	Reset()
 	Close()
 	GetHits() uint32
 	GetMisses() uint32
@@ -245,6 +246,15 @@ func (c *ChainCache) Close() {
 		cacher.Close()
 	}
 	c.inited = false
+}
+
+func (c *ChainCache) ResetStatistics() {
+	if !c.inited {
+		return
+	}
+	for _, cacher := range c.chain {
+		cacher.Reset()
+	}
 }
 
 func (c *ChainCache) GetHits() uint32 {
