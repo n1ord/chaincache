@@ -31,7 +31,17 @@ func RandomString(length int) string {
 // SET ------------------
 
 func BenchmarkFastCacherSet(b *testing.B) {
-	cacher, _ := chaincache.NewFastCacher(maxMem, true)
+	cacher, _ := chaincache.NewFastCacher(maxMem, true, false)
+
+	keys, data := getKeysData(limit)
+
+	for i := 0; i < b.N; i++ {
+		cacher.Set(keys[seededRand.Intn(limit)], data, 3600)
+	}
+}
+
+func BenchmarkFastCacherBigSet(b *testing.B) {
+	cacher, _ := chaincache.NewFastCacher(maxMem, true, true)
 
 	keys, data := getKeysData(limit)
 
@@ -41,7 +51,7 @@ func BenchmarkFastCacherSet(b *testing.B) {
 }
 
 func BenchmarkFastCacherBSet(b *testing.B) {
-	cacher, _ := chaincache.NewFastCacher(maxMem, true)
+	cacher, _ := chaincache.NewFastCacher(maxMem, true, false)
 
 	keys, data := getBKeysData(limit)
 
@@ -51,7 +61,7 @@ func BenchmarkFastCacherBSet(b *testing.B) {
 }
 
 func BenchmarkFastCacherNoTTLSet(b *testing.B) {
-	cacher, _ := chaincache.NewFastCacher(maxMem, false)
+	cacher, _ := chaincache.NewFastCacher(maxMem, false, false)
 
 	keys, data := getKeysData(limit)
 
@@ -61,7 +71,7 @@ func BenchmarkFastCacherNoTTLSet(b *testing.B) {
 }
 
 func BenchmarkFastCacherNoTTLBSet(b *testing.B) {
-	cacher, _ := chaincache.NewFastCacher(maxMem, false)
+	cacher, _ := chaincache.NewFastCacher(maxMem, false, false)
 
 	keys, data := getBKeysData(limit)
 
@@ -106,7 +116,20 @@ func BenchmarkProbeCacherBSet(b *testing.B) {
 
 func BenchmarkFastCacherGet(b *testing.B) {
 	b.StopTimer()
-	cacher, _ := chaincache.NewFastCacher(maxMem, true)
+	cacher, _ := chaincache.NewFastCacher(maxMem, true, false)
+	keys, data := getKeysData(limit)
+	for i := 0; i < b.N; i++ {
+		cacher.Set(keys[seededRand.Intn(limit)], data, 3600)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		cacher.Get(keys[seededRand.Intn(limit)])
+	}
+}
+
+func BenchmarkFastCacherBigGet(b *testing.B) {
+	b.StopTimer()
+	cacher, _ := chaincache.NewFastCacher(maxMem, true, true)
 	keys, data := getKeysData(limit)
 	for i := 0; i < b.N; i++ {
 		cacher.Set(keys[seededRand.Intn(limit)], data, 3600)
@@ -119,7 +142,7 @@ func BenchmarkFastCacherGet(b *testing.B) {
 
 func BenchmarkFastCacherBGet(b *testing.B) {
 	b.StopTimer()
-	cacher, _ := chaincache.NewFastCacher(maxMem, true)
+	cacher, _ := chaincache.NewFastCacher(maxMem, true, false)
 	keys, data := getBKeysData(limit)
 	for i := 0; i < b.N; i++ {
 		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
@@ -132,7 +155,7 @@ func BenchmarkFastCacherBGet(b *testing.B) {
 
 func BenchmarkFastCacherNoTTLGet(b *testing.B) {
 	b.StopTimer()
-	cacher, _ := chaincache.NewFastCacher(maxMem, false)
+	cacher, _ := chaincache.NewFastCacher(maxMem, false, false)
 	keys, data := getKeysData(limit)
 	for i := 0; i < b.N; i++ {
 		cacher.Set(keys[seededRand.Intn(limit)], data, 3600)
@@ -145,7 +168,7 @@ func BenchmarkFastCacherNoTTLGet(b *testing.B) {
 
 func BenchmarkFastCacherNoTTLBGet(b *testing.B) {
 	b.StopTimer()
-	cacher, _ := chaincache.NewFastCacher(maxMem, false)
+	cacher, _ := chaincache.NewFastCacher(maxMem, false, false)
 	keys, data := getBKeysData(limit)
 	for i := 0; i < b.N; i++ {
 		cacher.BSet(keys[seededRand.Intn(limit)], data, 3600)
@@ -211,7 +234,7 @@ func BenchmarkProbeCacherBGet(b *testing.B) {
 // SET Parralel -------------------------
 func BenchmarkFastCacherSetParallel(b *testing.B) {
 	b.StopTimer()
-	cacher, _ := chaincache.NewFastCacher(maxMem, true)
+	cacher, _ := chaincache.NewFastCacher(maxMem, true, false)
 	keys, data := getKeysData(limit)
 
 	b.StartTimer()
@@ -228,7 +251,7 @@ func BenchmarkFastCacherSetParallel(b *testing.B) {
 }
 func BenchmarkFastCacherNoTTLSetParallel(b *testing.B) {
 	b.StopTimer()
-	cacher, _ := chaincache.NewFastCacher(maxMem, false)
+	cacher, _ := chaincache.NewFastCacher(maxMem, false, false)
 	keys, data := getKeysData(limit)
 
 	b.StartTimer()
@@ -282,7 +305,7 @@ func BenchmarkProbeCacheSetParallel(b *testing.B) {
 // GET Parralel -------------------------
 func BenchmarkFastCacherGetParallel(b *testing.B) {
 	b.StopTimer()
-	cacher, _ := chaincache.NewFastCacher(maxMem, true)
+	cacher, _ := chaincache.NewFastCacher(maxMem, true, false)
 	keys, data := getKeysData(limit)
 	for i := 0; i < b.N; i++ {
 		cacher.Set(keys[seededRand.Intn(limit)], data, 3600)
@@ -303,7 +326,7 @@ func BenchmarkFastCacherGetParallel(b *testing.B) {
 
 func BenchmarkFastCacherNoTTLGetParallel(b *testing.B) {
 	b.StopTimer()
-	cacher, _ := chaincache.NewFastCacher(maxMem, false)
+	cacher, _ := chaincache.NewFastCacher(maxMem, false, false)
 	keys, data := getKeysData(limit)
 	for i := 0; i < b.N; i++ {
 		cacher.Set(keys[seededRand.Intn(limit)], data, 1000)

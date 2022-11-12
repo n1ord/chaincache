@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"crypto/rand"
 	"fmt"
 	"testing"
 	"time"
@@ -23,11 +24,11 @@ var (
 	}
 )
 
-func testCacher(t *testing.T, cacher chaincache.Cacher) {
+func testCacher(t *testing.T, cacher chaincache.Cacher, bigValues bool) {
+	N := 100
 	{
-		//Base Set/Get functional
+		//Base Set/Get functionality
 		ttl := 10
-		N := 100
 		for i := 0; i < N; i++ {
 			key := fmt.Sprintf("%d", i)
 			value := []byte(fmt.Sprintf("somevalue %d", i))
@@ -77,6 +78,29 @@ func testCacher(t *testing.T, cacher chaincache.Cacher) {
 		assert.Equal(t, err, chaincache.ErrMiss)
 		assert.Equal(t, gotTTL, 0)
 		assert.Equal(t, len(got), 0)
+	}
+
+	if bigValues {
+		//Base Set/Get functionality for big values
+		ttl := 10
+		n := 1
+		N += n
+
+		for i := 0; i < n; i++ {
+			key := fmt.Sprintf("big%d", i)
+			value := make([]byte, 64*1024)
+			rand.Read(value)
+			err := cacher.Set(key, value, ttl)
+			assert.Equal(t, err, nil)
+			checkHit(t, cacher, key, value)
+		}
+		// assert.Equal(t, cacher.GetHits(), uint32(N))
+
+		for i := 0; i < n; i++ {
+			key := fmt.Sprintf("new key %d", i)
+			checkMiss(t, cacher, key)
+		}
+		// assert.Equal(t, cacher.GetMisses(), uint32(N))
 	}
 }
 
@@ -164,14 +188,14 @@ func checkBHit(t *testing.T, c chaincache.Cacher, key []byte, value []byte) {
 func TestProbecacher(t *testing.T) {
 	//Base fucntionality
 	{
-		fc, err := chaincache.NewProbecacher(10, 10240*10, 10240*15, 6, chaincache.STORAGE_LRU)
+		fc, err := chaincache.NewProbecacher(10, 1024*1024*50, 1024*1024*65, 6, chaincache.STORAGE_LRU)
 		if err != nil {
 			panic(err)
 		}
-		testCacher(t, fc)
+		testCacher(t, fc, true)
 	}
 	{
-		fc, err := chaincache.NewProbecacher(10, 10240*10, 10240*15, 6, chaincache.STORAGE_LRU)
+		fc, err := chaincache.NewProbecacher(10, 1024*1024*50, 1024*1024*65, 6, chaincache.STORAGE_LRU)
 		if err != nil {
 			panic(err)
 		}
@@ -182,14 +206,14 @@ func TestProbecacher(t *testing.T) {
 func TestFreecacher(t *testing.T) {
 	//Base fucntionality
 	{
-		fc, err := chaincache.NewFreeCacher(1024 * 10)
+		fc, err := chaincache.NewFreeCacher(1024 * 1024 * 10)
 		if err != nil {
 			panic(err)
 		}
-		testCacher(t, fc)
+		testCacher(t, fc, false)
 	}
 	{
-		fc, err := chaincache.NewFreeCacher(1024 * 10)
+		fc, err := chaincache.NewFreeCacher(1024 * 1024 * 10)
 		if err != nil {
 			panic(err)
 		}
@@ -210,7 +234,7 @@ func TestAerocacher(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
-		testCacher(t, ac)
+		testCacher(t, ac, true)
 	}
 	{
 		ac, err := chaincache.NewAerocacher(cfg)
@@ -233,7 +257,7 @@ func TestRediscacher(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
-		testCacher(t, rc)
+		testCacher(t, rc, true)
 	}
 	{
 
@@ -249,15 +273,15 @@ func TestRediscacher(t *testing.T) {
 func TestFastcacherWithTTL(t *testing.T) {
 	//Base fucntionality
 	{
-		fc, err := chaincache.NewFastCacher(1024*10, true)
+		fc, err := chaincache.NewFastCacher(1024*1024*10, true, true)
 		if err != nil {
 			panic(err)
 		}
-		testCacher(t, fc)
+		testCacher(t, fc, true)
 	}
 
 	{
-		fc, err := chaincache.NewFastCacher(1024*10, true)
+		fc, err := chaincache.NewFastCacher(1024*1024*10, true, false)
 		if err != nil {
 			panic(err)
 		}
@@ -287,9 +311,9 @@ func TestFastcacherWithTTL(t *testing.T) {
 func TestChainCache(t *testing.T) {
 	{
 		// checks chain set applying to all cachers
-		fc1, _ := chaincache.NewFreeCacher(1024 * 10)
-		fc2, _ := chaincache.NewFreeCacher(1024 * 10)
-		fc3, _ := chaincache.NewFreeCacher(1024 * 10)
+		fc1, _ := chaincache.NewFreeCacher(1024 * 1024 * 10)
+		fc2, _ := chaincache.NewFreeCacher(1024 * 1024 * 10)
+		fc3, _ := chaincache.NewFreeCacher(1024 * 1024 * 10)
 		chain, _ := chaincache.NewChainCache(fc1, fc2, fc3)
 		key := "key"
 		value := []byte("value")
@@ -376,9 +400,9 @@ func TestChainCache(t *testing.T) {
 func TestChainCacheBytes(t *testing.T) {
 	{
 		// checks chain set applying to all cachers
-		fc1, _ := chaincache.NewFreeCacher(1024 * 10)
-		fc2, _ := chaincache.NewFreeCacher(1024 * 10)
-		fc3, _ := chaincache.NewFreeCacher(1024 * 10)
+		fc1, _ := chaincache.NewFreeCacher(1024 * 1024 * 10)
+		fc2, _ := chaincache.NewFreeCacher(1024 * 1024 * 10)
+		fc3, _ := chaincache.NewFreeCacher(1024 * 1024 * 10)
 		chain, _ := chaincache.NewChainCache(fc1, fc2, fc3)
 		key := []byte("key")
 		value := []byte("value")

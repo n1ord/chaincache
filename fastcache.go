@@ -9,8 +9,9 @@ import (
 )
 
 type Fastcacher struct {
-	MaxSize int
-	UseTTL  bool
+	MaxSize       int
+	UseTTL        bool
+	waitBigValues bool
 
 	inited       bool
 	ttlKeySuffix []byte
@@ -19,11 +20,12 @@ type Fastcacher struct {
 	misses       uint32
 }
 
-func NewFastCacher(maxSize int, useTTL bool) (*Fastcacher, error) {
+func NewFastCacher(maxSize int, useTTL bool, waitBigValues bool) (*Fastcacher, error) {
 	c := &Fastcacher{
-		MaxSize:      maxSize,
-		UseTTL:       useTTL,
-		ttlKeySuffix: []byte("@"),
+		MaxSize:       maxSize,
+		UseTTL:        useTTL,
+		ttlKeySuffix:  []byte("@"),
+		waitBigValues: waitBigValues,
 	}
 	if err := c.Init(); err != nil {
 		return nil, err
@@ -32,13 +34,14 @@ func NewFastCacher(maxSize int, useTTL bool) (*Fastcacher, error) {
 	return c, nil
 }
 
-func NewFastCacherFromInstance(cache *fastcache.Cache, useTTL bool) (*Fastcacher, error) {
+func NewFastCacherFromInstance(cache *fastcache.Cache, useTTL bool, waitBigValues bool) (*Fastcacher, error) {
 	c := &Fastcacher{
-		cache:        cache,
-		inited:       true,
-		MaxSize:      0,
-		UseTTL:       useTTL,
-		ttlKeySuffix: []byte("@"),
+		cache:         cache,
+		inited:        true,
+		MaxSize:       0,
+		UseTTL:        useTTL,
+		waitBigValues: waitBigValues,
+		ttlKeySuffix:  []byte("@"),
 	}
 	atomic.StoreUint32(&c.hits, 0)
 	atomic.StoreUint32(&c.misses, 0)
@@ -61,11 +64,22 @@ func (c *Fastcacher) GetWithTTL(key string) ([]byte, int, error) {
 		return nil, 0, ErrNotInited
 	}
 	k := []byte(key)
-
-	ret := c.cache.Get(nil, k)
-	if ret == nil {
-		atomic.AddUint32(&c.misses, 1)
-		return nil, 0, ErrMiss
+	var ret []byte
+	if c.waitBigValues {
+		ret = c.cache.GetBig(nil, k)
+		if ret == nil {
+			ret = c.cache.Get(nil, k)
+			if ret == nil {
+				atomic.AddUint32(&c.misses, 1)
+				return nil, 0, ErrMiss
+			}
+		}
+	} else {
+		ret = c.cache.Get(nil, k)
+		if ret == nil {
+			atomic.AddUint32(&c.misses, 1)
+			return nil, 0, ErrMiss
+		}
 	}
 
 	if c.UseTTL {
@@ -104,7 +118,12 @@ func (c *Fastcacher) Set(key string, payload []byte, ttlSeconds int) error {
 		binary.LittleEndian.PutUint64(tsBytes, uint64(ts))
 		payload = append(payload, tsBytes...)
 	}
-	c.cache.Set([]byte(key), payload)
+	if c.waitBigValues && len(payload) >= 65535 {
+		c.cache.SetBig([]byte(key), payload)
+	} else {
+		c.cache.Set([]byte(key), payload)
+	}
+
 	return nil
 }
 
@@ -121,10 +140,22 @@ func (c *Fastcacher) BGetWithTTL(key []byte) ([]byte, int, error) {
 		return nil, 0, ErrNotInited
 	}
 
-	ret := c.cache.Get(nil, key)
-	if ret == nil {
-		atomic.AddUint32(&c.misses, 1)
-		return nil, 0, ErrMiss
+	var ret []byte
+	if c.waitBigValues {
+		ret = c.cache.GetBig(nil, key)
+		if ret == nil {
+			ret = c.cache.Get(nil, key)
+			if ret == nil {
+				atomic.AddUint32(&c.misses, 1)
+				return nil, 0, ErrMiss
+			}
+		}
+	} else {
+		ret = c.cache.Get(nil, key)
+		if ret == nil {
+			atomic.AddUint32(&c.misses, 1)
+			return nil, 0, ErrMiss
+		}
 	}
 
 	if c.UseTTL {
@@ -164,7 +195,11 @@ func (c *Fastcacher) BSet(key []byte, payload []byte, ttlSeconds int) error {
 		binary.LittleEndian.PutUint64(tsBytes, uint64(ts))
 		payload = append(payload, tsBytes...)
 	}
-	c.cache.Set(key, payload)
+	if c.waitBigValues && len(payload) >= 65535 {
+		c.cache.SetBig(key, payload)
+	} else {
+		c.cache.Set(key, payload)
+	}
 	return nil
 }
 
